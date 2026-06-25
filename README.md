@@ -104,7 +104,7 @@ The project also tested other models, including SVM, Random Forest, Decision Tre
 ### CNA-only L1 Logistic Regression
 
 <p align="center">
-  <img src="results/figures/02_confusion_matrix_cna_lr.png" alt="CNA LR confusion matrix" width="600">
+  <img src="results/figures/02_confusion_matrix_cna_lr.png" alt="CNA LR confusion matrix" width="400">
 </p>
 
 **Figure 3. L1 Logistic Regression performance using only log2CNA features.**
@@ -120,7 +120,7 @@ The CNA-only model captured some survival signal, but its performance was modest
 ### Methylation-only L1 Logistic Regression
 
 <p align="center">
-  <img src="results/figures/03_confusion_matrix_methylation_lr.png" alt="Methylation LR confusion matrix" width="600">
+  <img src="results/figures/03_confusion_matrix_methylation_lr.png" alt="Methylation LR confusion matrix" width="400">
 </p>
 
 **Figure 4. L1 Logistic Regression performance using DNA methylation features.**
@@ -136,7 +136,7 @@ The methylation model performed strongly as a single-omics model, with better ac
 ### mRNA-seq-only L1 Logistic Regression
 
 <p align="center">
-  <img src="results/figures/04_confusion_matrix_mrnaseq_lr.png" alt="mRNA-seq LR confusion matrix" width="600">
+  <img src="results/figures/04_confusion_matrix_mrnaseq_lr.png" alt="mRNA-seq LR confusion matrix" width="400">
 </p>
 
 **Figure 5. L1 Logistic Regression performance using mRNA-seq features.**
@@ -152,7 +152,7 @@ The mRNA-seq model showed meaningful survival-prediction signal, with recall com
 ### Accuracy-Weighted Ensemble Model
 
 <p align="center">
-  <img src="results/figures/05_confusion_matrix_weighted_ensemble_lr.png" alt="Accuracy-weighted ensemble confusion matrix" width="600">
+  <img src="results/figures/05_confusion_matrix_weighted_ensemble_lr.png" alt="Accuracy-weighted ensemble confusion matrix" width="400">
 </p>
 
 **Figure 6. Accuracy-weighted ensemble voting across CNA, methylation, and mRNA-seq L1 Logistic Regression models.**
