@@ -55,7 +55,9 @@ Patient overlap across the omics layers was limited. The project files report th
 
 The survival target was converted into a binary classification label using month-level survival thresholds. The project tested multiple thresholds and selected the threshold that produced the most balanced survived-vs-deceased split.
 
-![Survival threshold class balance](results/figures/01_survival_threshold_class_balance.png)
+<p align="center">
+  <img src="results/figures/01_survival_threshold_class_balance.png" alt="Survival threshold class balance" width="700">
+</p>
 
 **Figure 1. Survival-threshold class-balance analysis.**  
 The difference between survived and deceased patient counts was smallest around the **42-month survival threshold**, so 42 months was selected as the binary survival cutoff for the main modeling experiment.
@@ -66,7 +68,9 @@ The difference between survived and deceased patient counts was smallest around 
 
 A t-SNE visualization was generated for normalized log2CNA features, and literature-derived ovarian cancer gene panels were overlaid on the broader CNA feature space.
 
-![log2CNA t-SNE literature gene overlay](results/figures/07_log2cna_tsne_literature_gene_overlay.png)
+<p align="center">
+  <img src="results/figures/07_log2cna_tsne_literature_gene_overlay.png" alt="log2CNA t-SNE literature gene overlay" width="700">
+</p>
 
 **Figure 2. Normalized t-SNE of log2CNA data with literature-derived epithelial ovarian cancer gene panels overlaid.**  
 Grey points represent all CNA genes/features. Colored points represent genes from literature-derived ovarian cancer panels. This plot was used as an exploratory sanity check to confirm that literature-supported ovarian cancer genes were present within the processed CNA feature space. It should not be interpreted as proof of survival causality, because t-SNE is primarily a visualization method.
@@ -99,7 +103,9 @@ The project also tested other models, including SVM, Random Forest, Decision Tre
 
 ### CNA-only L1 Logistic Regression
 
-![CNA LR confusion matrix](results/figures/02_confusion_matrix_cna_lr.png)
+<p align="center">
+  <img src="results/figures/02_confusion_matrix_cna_lr.png" alt="CNA LR confusion matrix" width="600">
+</p>
 
 **Figure 3. L1 Logistic Regression performance using only log2CNA features.**
 
@@ -113,7 +119,9 @@ The CNA-only model captured some survival signal, but its performance was modest
 
 ### Methylation-only L1 Logistic Regression
 
-![Methylation LR confusion matrix](results/figures/03_confusion_matrix_methylation_lr.png)
+<p align="center">
+  <img src="results/figures/03_confusion_matrix_methylation_lr.png" alt="Methylation LR confusion matrix" width="600">
+</p>
 
 **Figure 4. L1 Logistic Regression performance using DNA methylation features.**
 
@@ -127,7 +135,9 @@ The methylation model performed strongly as a single-omics model, with better ac
 
 ### mRNA-seq-only L1 Logistic Regression
 
-![mRNA-seq LR confusion matrix](results/figures/04_confusion_matrix_mrnaseq_lr.png)
+<p align="center">
+  <img src="results/figures/04_confusion_matrix_mrnaseq_lr.png" alt="mRNA-seq LR confusion matrix" width="600">
+</p>
 
 **Figure 5. L1 Logistic Regression performance using mRNA-seq features.**
 
@@ -141,7 +151,9 @@ The mRNA-seq model showed meaningful survival-prediction signal, with recall com
 
 ### Accuracy-Weighted Ensemble Model
 
-![Accuracy-weighted ensemble confusion matrix](results/figures/05_confusion_matrix_weighted_ensemble_lr.png)
+<p align="center">
+  <img src="results/figures/05_confusion_matrix_weighted_ensemble_lr.png" alt="Accuracy-weighted ensemble confusion matrix" width="600">
+</p>
 
 **Figure 6. Accuracy-weighted ensemble voting across CNA, methylation, and mRNA-seq L1 Logistic Regression models.**
 
@@ -156,8 +168,9 @@ The accuracy-weighted ensemble produced the strongest reported result. It improv
 ## Explainable AI Results: Top Decision-Making Genes
 
 The final explainability output aggregated genes/features that repeatedly appeared as important decision-making features across the L1 Logistic Regression models.
-
-![Top XAI genes frequency](results/figures/06_top_xai_genes_frequency.png)
+<p align="center">
+  <img src="results/figures/06_top_xai_genes_frequency.png" alt="Top XAI genes frequency" width="1000">
+</p>![Top XAI genes frequency](results/figures/06_top_xai_genes_frequency.png)
 
 **Figure 7. Most common decision-making genes across the L1 Logistic Regression models.**  
 Genes appearing more frequently were selected more often as important contributors to model decisions. This plot should be interpreted as model-level feature importance, not as proof that these genes are causal drivers of survival.
