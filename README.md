@@ -19,8 +19,6 @@ The final modeling strategy uses separate **L1-regularized Logistic Regression**
 
 Explainability was performed using SHAP-based feature attribution on the trained Logistic Regression models. SHAP assigns feature-level contribution values to model predictions, making it useful for connecting model decisions back to specific genes/features. [3]
 
-The biological interpretation focuses on ovarian-cancer-relevant processes such as epithelial identity, tumor plasticity, cell-cycle dysregulation, DNA repair, immune response, stromal signaling, angiogenesis, metabolic stress, and treatment resistance.
-
 ---
 
 ## Motivation
