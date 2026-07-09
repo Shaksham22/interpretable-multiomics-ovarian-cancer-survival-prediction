@@ -1,41 +1,18 @@
 # Interpretable Multi-Omics Ovarian Cancer Survival Prediction
 
-This repository presents an interpretable machine-learning project for **epithelial ovarian cancer survival prediction** using multi-omics data. The project combines **mRNA-seq**, **DNA methylation**, and **log2 copy-number alteration (log2CNA)** features with explainable AI outputs to identify genes/features that repeatedly influenced survival-classification decisions.
+This repository presents an interpretable machine-learning project for **epithelial ovarian cancer survival prediction** using three processed omics layers: **mRNA-seq**, **DNA methylation**, and **log2 copy-number alteration (log2CNA)**. The goal is not only to classify survival outcome, but also to identify the molecular features that repeatedly influenced the model's decisions.
 
-The biological framing of this project is guided by two main literature sources:
-
-1. **Millstein et al., “Prognostic gene expression signature for high-grade serous ovarian cancer,” Annals of Oncology, 2020** — the source of the 101-gene high-grade serous ovarian cancer prognostic reference panel used in this project. The paper measured 513 genes in 3,769 HGSOC tumors, trained a prognostic model on 2,702 tumors, validated it on 1,067 tumors, and reported a 101-gene signature associated with overall survival. [1]
-2. **Srinivasamurthy and Ramamoorthi, “The Progression and Prospects of the Gene Expression Profiling in Ovarian Epithelial Cancer,” Gynecology and Minimally Invasive Therapy, 2024** — used as background support for the importance of gene-expression profiling and gene signatures in ovarian epithelial cancer research. [2]
-
-This project is **research-oriented** and should be interpreted as a computational and biological exploration, not as a clinically validated diagnostic or prognostic tool.
+The project is **research-oriented** and should be interpreted as a computational and biological exploration. It is **not** a clinically validated diagnostic or prognostic tool.
 
 ---
 
 ## Executive Summary
 
-The project predicts binary survival outcomes in epithelial ovarian cancer using high-dimensional multi-omics data. The main objective is not only to improve prediction accuracy, but also to make the model interpretable by identifying the genes and molecular features that influence its decisions.
+The final workflow trains separate **L1-regularized Logistic Regression** models for CNA, methylation, and mRNA-seq data. L1 regularization was selected because it supports sparse, gene-level interpretability by shrinking weaker coefficients toward zero.
 
-The final modeling strategy uses separate **L1-regularized Logistic Regression** models for CNA, methylation, and mRNA-seq data. L1 regularization was selected because it performs classification while also shrinking weak feature coefficients to zero, making the model useful for sparse gene-level interpretation. The outputs from the three omics-specific models were combined using an **accuracy-weighted ensemble voting** strategy.
+The three omics-specific models are then combined using a **probability-weighted Logistic Regression ensemble**. Instead of relying on one omics layer, the ensemble combines the predicted probabilities from the CNA, methylation, and mRNA-seq models using validation-performance-based weights.
 
-Explainability was performed using SHAP-based feature attribution on the trained Logistic Regression models. SHAP assigns feature-level contribution values to model predictions, making it useful for connecting model decisions back to specific genes/features. [3]
-
----
-
-## Motivation
-
-Ovarian cancer is frequently diagnosed at an advanced stage and has poor long-term survival. High-grade serous ovarian cancer, the most lethal epithelial ovarian cancer subtype, is responsible for a large fraction of ovarian cancer deaths and is characterized by extensive genomic instability and clinical heterogeneity. [1,4]
-
-Survival prediction in ovarian cancer is challenging because tumor behavior is shaped by multiple biological layers. Gene expression, DNA methylation, and copy-number alteration each capture different aspects of tumor biology. A multi-omics approach can therefore provide a broader view than a single data type.
-
-However, multi-omics datasets are usually extremely high dimensional: the number of molecular features is much larger than the number of patients. This makes interpretability essential. A black-box model may produce predictions, but it does not easily explain which genes or biological pathways drove those predictions.
-
-This project addresses that problem by combining:
-
-- multi-omics survival classification,
-- sparse interpretable modeling,
-- literature-guided gene filtering,
-- ensemble prediction,
-- and explainable AI gene-level interpretation.
+Explainability is performed using SHAP-based feature attribution. For each test-sample prediction, the strongest local explanation features are extracted and aggregated across omics layers. The final interpretation in this README focuses only on the **combined repeated XAI features occurring at least 5 times** across the full multi-omics workflow.
 
 ---
 
@@ -43,26 +20,30 @@ This project addresses that problem by combining:
 
 The project uses three processed omics layers:
 
-| Omics layer | Patients | Features | Feature meaning |
+| Omics layer | Patients before overlap filtering | Features | Feature meaning |
 |---|---:|---:|---|
 | DNA methylation | 418 | 22,600 | CpG/methylation sites linked to gene regulation |
 | mRNA-seq | 218 | 19,076 | Gene-expression features |
 | log2CNA | 417 | 25,128 | Gene-level copy-number alteration features |
 
-Patient overlap across the omics layers was limited. The project files report that 417 patients have both methylation and log2CNA data, while 213 patients have all three datasets: methylation, mRNA-seq, and log2CNA.
+Patient overlap across omics layers is limited. The workflow aligns samples across CNA, methylation, and mRNA-seq before model training and ensemble prediction.
 
-The survival target was converted into a binary classification label using month-level survival thresholds. The project tested multiple thresholds and selected the threshold that produced the most balanced survived-vs-deceased split.
+---
+
+## Survival Threshold Selection
+
+The survival target was converted into a binary label using month-level survival thresholds. The 42-month threshold was selected because it produced the smallest survived-vs-deceased class difference among the tested thresholds.
 
 <p align="center">
   <img src="results/figures/01_survival_threshold_class_balance.png" alt="Survival threshold class balance" width="700">
 </p>
 
 **Figure 1. Survival-threshold class-balance analysis.**  
-The difference between survived and deceased patient counts was smallest around the **42-month survival threshold**, so 42 months was selected as the binary survival cutoff for the main modeling experiment.
+The class difference was lowest around **42 months**, making it the most balanced cutoff for the main survival-classification experiment.
 
 ---
 
-## Exploratory Biological Check: Literature Gene Overlay on CNA Space
+## Exploratory CNA Literature-Gene Overlay
 
 A t-SNE visualization was generated for normalized log2CNA features, and literature-derived ovarian cancer gene panels were overlaid on the broader CNA feature space.
 
@@ -71,267 +52,309 @@ A t-SNE visualization was generated for normalized log2CNA features, and literat
 </p>
 
 **Figure 2. Normalized t-SNE of log2CNA data with literature-derived epithelial ovarian cancer gene panels overlaid.**  
-Grey points represent all CNA genes/features. Colored points represent genes from literature-derived ovarian cancer panels. This plot was used as an exploratory sanity check to confirm that literature-supported ovarian cancer genes were present within the processed CNA feature space. It should not be interpreted as proof of survival causality, because t-SNE is primarily a visualization method.
+Grey points represent all CNA genes/features. Colored points represent genes from literature-derived ovarian cancer panels. This plot is used only as an exploratory sanity check showing that literature-supported genes are present in the processed CNA feature space. It should **not** be interpreted as proof of survival causality or biological clustering.
 
 ---
 
 ## Modeling Workflow
 
-The project workflow follows this structure:
+The workflow follows this structure:
 
 1. Load processed mRNA-seq, methylation, and log2CNA datasets.
-2. Align patients across datasets using Sample ID.
-3. Remove samples with missing survival labels for the selected threshold.
-4. Normalize the omics matrices.
-5. Remove low-variance features.
-6. Rank remaining features using Pearson correlation with the survival label.
-7. Retain a top percentage of informative features.
-8. Add back literature-supported genes from the 101-gene reference panel if they were removed during filtering.
-9. Train separate L1 Logistic Regression models for CNA, methylation, and mRNA-seq.
-10. Tune regularization strength using GridSearchCV.
-11. Evaluate each model using accuracy, precision, recall, F1-score, and confusion matrix.
-12. Combine the three model predictions using accuracy-weighted voting.
-13. Use SHAP explanations to extract repeatedly important decision-making genes/features.
-
-The project also tested other models, including SVM, Random Forest, Decision Tree, and MLP. The final selected model was L1 Logistic Regression because it produced competitive performance while preserving gene-level interpretability.
+2. Align patients across datasets using sample IDs.
+3. Remove samples without usable survival labels.
+4. Select the 42-month survival threshold for binary classification.
+5. Split aligned samples into train and test sets.
+6. Normalize features.
+7. Remove low-variance features.
+8. Rank remaining features using correlation with the survival label.
+9. Add back genes from literature-derived ovarian cancer panels where relevant.
+10. Train separate tuned Logistic Regression models for CNA, methylation, and mRNA-seq.
+11. Evaluate each model using accuracy, balanced accuracy, precision, recall, F1-score, and confusion matrix.
+12. Combine model probabilities using validation-performance-based ensemble weights.
+13. Use SHAP explanations to identify repeatedly important features.
+14. Aggregate recurrent features across the three omics layers.
+15. Interpret only the final combined features occurring **5+ times**.
 
 ---
 
 ## Model Performance
 
-### CNA-only L1 Logistic Regression
+### CNA-only Logistic Regression
 
 <p align="center">
   <img src="results/figures/02_confusion_matrix_cna_lr.png" alt="CNA LR confusion matrix" width="400">
 </p>
 
-**Figure 3. L1 Logistic Regression performance using only log2CNA features.**
+| Model | Accuracy | Balanced Accuracy | Precision | Recall | F1-score |
+|---|---:|---:|---:|---:|---:|
+| CNA LR | 0.7170 | 0.7165 | 0.7143 | 0.7407 | 0.7273 |
 
-| Model | Accuracy | Precision | Recall | F1-score |
-|---|---:|---:|---:|---:|
-| CNA LR | 0.6118 | 0.5854 | 0.6000 | 0.5926 |
-
-The CNA-only model captured some survival signal, but its performance was modest compared with methylation, mRNA-seq, and the final ensemble.
+The CNA model produced the strongest individual-omics test performance in this run.
 
 ---
 
-### Methylation-only L1 Logistic Regression
+### Methylation-only Logistic Regression
 
 <p align="center">
   <img src="results/figures/03_confusion_matrix_methylation_lr.png" alt="Methylation LR confusion matrix" width="400">
 </p>
 
-**Figure 4. L1 Logistic Regression performance using DNA methylation features.**
+| Model | Accuracy | Balanced Accuracy | Precision | Recall | F1-score |
+|---|---:|---:|---:|---:|---:|
+| Methylation LR | 0.6604 | 0.6603 | 0.6667 | 0.6667 | 0.6667 |
 
-| Model | Accuracy | Precision | Recall | F1-score |
-|---|---:|---:|---:|---:|
-| Methylation LR | 0.7059 | 0.6923 | 0.6750 | 0.6835 |
-
-The methylation model performed strongly as a single-omics model, with better accuracy and precision than the CNA-only model.
+The methylation model showed moderate survival-classification signal and contributed to the final probability-weighted ensemble.
 
 ---
 
-### mRNA-seq-only L1 Logistic Regression
+### mRNA-seq-only Logistic Regression
 
 <p align="center">
   <img src="results/figures/04_confusion_matrix_mrnaseq_lr.png" alt="mRNA-seq LR confusion matrix" width="400">
 </p>
 
-**Figure 5. L1 Logistic Regression performance using mRNA-seq features.**
+| Model | Accuracy | Balanced Accuracy | Precision | Recall | F1-score |
+|---|---:|---:|---:|---:|---:|
+| mRNA-seq LR | 0.6415 | 0.6403 | 0.6333 | 0.7037 | 0.6667 |
 
-| Model | Accuracy | Precision | Recall | F1-score |
-|---|---:|---:|---:|---:|
-| mRNA-seq LR | 0.6706 | 0.6429 | 0.6750 | 0.6585 |
-
-The mRNA-seq model showed meaningful survival-prediction signal, with recall comparable to methylation but lower precision and accuracy in this result set.
+The mRNA-seq model had lower overall accuracy than CNA, but retained meaningful recall and contributed a strong transcriptomic explanation signal through CCL14.
 
 ---
 
-### Accuracy-Weighted Ensemble Model
+### Probability-Weighted Ensemble Model
 
 <p align="center">
-  <img src="results/figures/05_confusion_matrix_weighted_ensemble_lr.png" alt="Accuracy-weighted ensemble confusion matrix" width="400">
+  <img src="results/figures/05_confusion_matrix_weighted_ensemble_lr.png" alt="Probability-weighted ensemble confusion matrix" width="400">
 </p>
 
-**Figure 6. Accuracy-weighted ensemble voting across CNA, methylation, and mRNA-seq L1 Logistic Regression models.**
+| Model | Accuracy | Balanced Accuracy | Precision | Recall | F1-score |
+|---|---:|---:|---:|---:|---:|
+| Probability-weighted LR ensemble | **0.7547** | **0.7543** | **0.7500** | **0.7778** | **0.7636** |
 
-| Model | Accuracy | Precision | Recall | F1-score |
-|---|---:|---:|---:|---:|
-| Accuracy-weighted LR ensemble | 0.7529 | 0.7436 | 0.7250 | 0.7342 |
+The probability-weighted ensemble produced the strongest overall result in this run, improving over the individual CNA, methylation, and mRNA-seq models.
 
-The accuracy-weighted ensemble produced the strongest reported result. It improved accuracy, precision, recall, and F1-score compared with each individual omics model.
+Ensemble weights from the current run:
+
+| Omics model | Ensemble weight |
+|---|---:|
+| CNA | 0.3039 |
+| Methylation | 0.3431 |
+| mRNA-seq | 0.3530 |
 
 ---
 
-## Explainable AI Results: Top Decision-Making Genes
+## Final Combined Explainable AI Results
 
-The final explainability output aggregated genes/features that repeatedly appeared as important decision-making features across the L1 Logistic Regression models.
+The final XAI interpretation focuses only on the **combined repeated features occurring at least 5 times** across the methylation, mRNA-seq, and CNA explanation dictionaries.
+
 <p align="center">
-  <img src="results/figures/06_top_xai_genes_frequency.png" alt="Top XAI genes frequency" width="1000">
-</p>![Top XAI genes frequency](results/figures/06_top_xai_genes_frequency.png)
+  <img src="results/figures/06_top_xai_genes_frequency.png" alt="Combined top XAI genes frequency" width="1000">
+</p>
 
-**Figure 7. Most common decision-making genes across the L1 Logistic Regression models.**  
-Genes appearing more frequently were selected more often as important contributors to model decisions. This plot should be interpreted as model-level feature importance, not as proof that these genes are causal drivers of survival.
+**Figure 7. Combined features occurring 5+ times across all models.**  
+Frequency means how often a gene or feature appeared among the strongest local explanation signals. It does **not** prove that the gene causes survival differences.
 
-### Selection-Frequency Ranges
+### Combined XAI Feature Frequency Table
 
-| Frequency range | Genes |
-|---|---|
-| `> 40 times` | TWIST1 |
-| `30–40 times` | LIPC, SYNE2 |
-| `20–30 times` | TOMM40L, APPL2, AGMAT |
-| `10–20 times` | CDC20, HIST2H2AB, MPHOSPH10, ALS2CL, UHMK1, ZNF436, SFXN5, TSPYL5, CDK2, PNMA3, KCNS3, ATP6V1D, EIF2S1, SERPINC1, IL1RAPL1, CDC37, PADI6 |
-| `≥ 9 times` | CLEC4A, LINC01799, TXNDC12, PHTF1, B3GALT2, CELSR3, ABHD6 |
-
----
-
-## Literature-Derived 101-Gene Panel
-
-The 101-gene panel was used as a **biologically informed reference set**, not as a result invented by this project. It comes from Millstein et al., who developed a 101-gene prognostic expression signature for high-grade serous ovarian cancer overall survival. [1]
-
-This README does **not** explain every gene in the 101-gene panel individually. The role of the panel here is to provide a literature-supported comparator for the project’s model-identified explainable features.
-
-### Complete 101-Gene Panel Used as Reference
-
-```text
-CDH1, STK16, MAL, GJB1, TESK1, PTH2R, DNAJC9, SRI, WWP1, AKT1S1,
-MYOD1, NF1, CPNE1, BNIP3L, NUCB2, AADAC, MITF, CEACAM5, GMNN, ATP5A1,
-C19orf12, BRCA2, GMPR, SMARCA4, PCDH9, MAK, PCK2, GFRA1, BAALC, RNASEL,
-B4GALT5, MYC, LPAR3, DUSP4, CDKN3, E2F6, FAM58A, PARP4, KRT6, FOXJ1,
-HSP90AA1, USP8, HIF1A, SMO, CTLA4, CCNE1, ASRGL1, FGFR1, IL22, PPP2R4,
-ZFHX4, SPTLC2, PD.1, FOXP3, RB1, CXCL10, PAX2, OPA1, EZR, OASL,
-RARRES1, ANXA4, HBB, SERPINE1, MINPP1, APPL2, MRPS27, MDM2, CDK6,
-CRABP2, SHPRH, WDR91, NTRK2, GUSB, OR1G1, TAP1, ESR2, IGHM, CX3CR1,
-MRE11A, VCAN, GTF2H5, MEST, IGF2, KDM5D, TCF7L1, VSIG4, NF2, FOXRED2,
-MAP2K4, ADH1B, TBX2, NUAK2, ESD, FGF1, ZNHIT2, PGRA, KLHL7, SOX17,
-TSHR, CXCL9
-```
-
-**Notation notes:**
-
-- `PD.1` is commonly represented by the gene symbol **PDCD1** when referring to the PD-1 immune checkpoint receptor.
-- `PGRA` appears in the project gene list. If this refers to progesterone receptor A, the canonical gene symbol is usually **PGR**, with PR-A referring to an isoform/protein notation. This should be verified against the original annotation file before publication.
-- `SERPINC1` from the XAI plot is **not** the same gene as `SERPINE1` from the 101-gene panel.
-- `CDK2` from the XAI plot is **not** the same gene as `CDK6` from the 101-gene panel.
+| Feature / Gene | Methylation | mRNA-seq | CNA | Combined frequency |
+|---|---:|---:|---:|---:|
+| FRMD5 | 0 | 0 | 13 | **13** |
+| CCL14 | 0 | 13 | 0 | **13** |
+| LRRN1 | 0 | 0 | 11 | **11** |
+| AADAC | 3 | 0 | 7 | **10** |
+| RIPPLY2 | 0 | 0 | 8 | **8** |
+| ATP5A1 | 0 | 0 | 8 | **8** |
+| RAD54B | 6 | 0 | 1 | **7** |
+| NUAK2 | 0 | 0 | 7 | **7** |
+| FOXJ1 | 0 | 0 | 7 | **7** |
+| CAT | 0 | 0 | 7 | **7** |
+| GUSB | 0 | 0 | 6 | **6** |
+| RFT1 | 0 | 0 | 6 | **6** |
+| MRAP2 | 0 | 0 | 6 | **6** |
+| NF1 | 0 | 0 | 6 | **6** |
+| C10orf4 | 5 | 0 | 0 | **5** |
+| KLK10 | 5 | 0 | 0 | **5** |
+| TGM7 | 0 | 0 | 5 | **5** |
+| GRB7 | 1 | 0 | 4 | **5** |
+| IGF2 | 4 | 0 | 1 | **5** |
 
 ---
 
-## Overlap Between Literature-Derived Genes and XAI Top Features
+## Biological Interpretation of Final Combined XAI Features
 
-The visible XAI gene list was compared with the 101-gene reference panel.
+Important interpretation note: these are **model-derived explanation features**, not proven causal biomarkers. A feature can appear because it captures expression signal, methylation regulation, copy-number dosage, or a correlated genomic region. CNA features especially should be interpreted carefully because they may reflect broader copy-number structure rather than direct gene-expression activity.
 
-### Exact Overlap
-
-The exact overlap is:
-
-```text
-APPL2
-```
-
-| Gene | Description | What the gene does | Relevance to ovarian cancer |
-|---|---|---|---|
-| APPL2 | APPL2 appeared in both the 101-gene literature-derived panel and the project’s top XAI feature list. | APPL2 encodes an adaptor protein associated with Rab5/endosomal signaling and can participate in signal-transduction pathways. [5] | Its ovarian-cancer relevance in this README is based on its inclusion in the Millstein et al. HGSOC 101-gene prognostic signature, not on a separately validated APPL2-specific ovarian cancer mechanism in this project. [1] |
-
-This overlap matters because it shows that at least one model-prioritized feature was also present in a large externally derived HGSOC prognostic gene signature. The overlap does not prove causality, but it strengthens the biological interpretability of the model output.
-
----
-
-## Additional XAI Genes with Ovarian-Cancer-Relevant Literature Support
-
-The genes below were present in the model’s explainable AI top-feature plot and have ovarian-cancer-relevant literature support. Genes without direct or well-supported ovarian cancer relevance are not interpreted in detail.
-
-| Gene | Description | What the gene does | Relevance to ovarian cancer |
-|---|---|---|---|
-| TWIST1 | Most frequent XAI decision-making gene in the project. | TWIST1 is a basic helix-loop-helix transcription factor associated with epithelial-to-mesenchymal transition, invasion, and metastatic behavior. [6] | TWIST expression has been reported as a predictor of unfavorable prognosis in ovarian epithelial cancers, and TWIST1 has also been linked to cisplatin resistance and survival in epithelial ovarian cancer models. [6,7] |
-| LIPC | High-frequency XAI gene in the 30–40 selection-frequency range. | LIPC encodes hepatic lipase and is involved in lipid metabolism. | In patient-derived epithelial ovarian cancer tumor organoids, LIPC was reported among top upregulated genes in carboplatin-resistant tumor organoids. This supports cautious interpretation of LIPC as a candidate metabolism/therapy-response-associated signal, not as a validated survival biomarker. [8] |
-| CDC20 | XAI gene in the 10–20 selection-frequency range. | CDC20 regulates mitotic progression through the anaphase-promoting complex/cyclosome and is linked to cell-cycle progression. | CDC20 has been reported as a biomarker for improved clinical prediction in epithelial ovarian cancer, with high CDC20 expression associated with poor prognosis. [9] |
-| TSPYL5 | XAI gene in the 10–20 selection-frequency range. | TSPYL5 has been described as a tumor-suppressor-related gene in multiple cancer contexts. | In an ovarian cancer study, miR-629 upregulation was associated with reduced TSPYL5 expression in ovarian cancer tissue, and the miR-629/TSPYL5 axis was linked to malignant ovarian cancer cell behaviors. [10] |
-| CDK2 | XAI gene in the 10–20 selection-frequency range. | CDK2 is a cyclin-dependent kinase that regulates G1/S cell-cycle progression. | CDK2 is biologically relevant to ovarian cancer through the CCNE1/CDK2 axis. Ovarian cancer cells with elevated CCNE1 expression have been reported to be more sensitive to CDK2 inhibition, and CCNE1-amplified high-grade serous ovarian cancer has been studied as a targetable subgroup. [11,12] |
-| ATP6V1D | XAI gene in the 10–20 selection-frequency range. | ATP6V1D encodes a component of the vacuolar ATPase complex, which participates in proton transport and cellular/organelle acidification. | In ovarian cancer cell-line experiments, combined metformin and simvastatin treatment downregulated ATP6V1D and affected AMPK/mTOR-related pathways, supporting ATP6V1D as a candidate metabolism/signaling-related feature in ovarian cancer cells. [13] |
-| SERPINC1 | XAI gene in the 10–20 selection-frequency range. | SERPINC1 encodes antithrombin, a serine protease inhibitor involved in coagulation regulation. [14] | Circulating exosomal SERPINC1 has been reported as upregulated in epithelial ovarian cancer and proposed as a diagnostic biomarker candidate. This supports ovarian-cancer relevance, but not direct survival causality in this project. [15] |
-| CDC37 | XAI gene in the 10–20 selection-frequency range. | CDC37 is an HSP90 co-chaperone that stabilizes kinase client proteins and supports kinase signaling. [16] | An ovarian cancer network-pharmacology and experimental study reported CDC37 as a direct celastrol-interacting target in ovarian cancer and connected it to ovarian cancer cell proliferation/cell-cycle effects. [17] |
-| LINC01799 | XAI gene in the ≥9 selection-frequency range. | LINC01799 is a long intergenic non-coding RNA. | LINC01799 has been included in an m6A-related long-noncoding-RNA prognostic signature for ovarian cancer. This supports possible prognostic relevance but requires further validation in this project’s cohort. [18] |
-| B3GALT2 | XAI gene in the ≥9 selection-frequency range. | B3GALT2 is a glycosyltransferase involved in glycan biosynthesis. | O-glycan pathway expression has been associated with in vitro gemcitabine sensitivity and overall survival from ovarian cancer, and B3GALT2 appears in this pathway context. This supports cautious interpretation as a glycosylation-related candidate feature. [19] |
+| Feature / Gene | Model signal | Evidence level | Literature-supported relevance | Simple explanation |
+|---|---:|---|---|---|
+| **FRMD5** | 13; CNA | Exploratory; process-supported | FRMD5 is officially annotated as involved in positive regulation of cell adhesion and regulation of cell migration. Direct epithelial ovarian cancer evidence is limited, but cell adhesion and migration are central to ovarian cancer invasion and peritoneal spread. | This is like a gene connected to how cells stick, move, and hold their shape. If copy-number changes affect this region, the model may be detecting signals related to tumor cells becoming more mobile or invasive. Do not call it a confirmed ovarian biomarker yet. |
+| **CCL14** | 13; mRNA-seq | Direct EOC evidence | CCL14 is a chemokine involved in immune signalling. A published epithelial ovarian cancer study reported CCL14 as an independent prognostic factor, with higher expression associated with more favourable prognosis. | This gene is part of immune communication. If its expression is higher, it may reflect a tumor environment where immune-related signalling is different, which can affect survival patterns. |
+| **LRRN1** | 11; CNA | Exploratory; process-supported | LRRN1 is a leucine-rich-repeat gene connected to cell-surface/neural adhesion-related biology. Direct ovarian-cancer-specific evidence is limited. In this project it is best treated as a recurrent CNA signal. | Think of this as a cell-surface communication or adhesion-related signal. The model may be seeing copy-number structure around a region that affects how tumor cells interact with their surroundings. |
+| **AADAC** | 10; methylation + CNA | Direct ovarian cancer evidence | AADAC expression signatures have been associated with ovarian cancer prognosis and immune-cell infiltration. | This gene may connect metabolism-like activity with immune patterns in the tumor. In simple terms, its repeated appearance suggests the model may be detecting a survival-related biological environment, not just a random feature. |
+| **RIPPLY2** | 8; CNA | Exploratory | RIPPLY2 is a developmental transcriptional regulator. Direct ovarian cancer evidence is not well established. | Developmental regulators help control body-patterning and cell-state programs. When such regions appear in cancer data, they may suggest abnormal regulation, but this needs validation before making a strong claim. |
+| **ATP5A1** | 8; CNA | Cancer-process supported | ATP5A1 encodes a subunit of mitochondrial ATP synthase. ATP synthase and mitochondrial energy metabolism have been discussed as cancer-relevant, with mitochondrial changes also important in ovarian cancer biology. | Cancer cells need energy to grow, divide, repair damage, and resist stress. A repeated ATP5A1-linked CNA signal may reflect energy-metabolism differences in tumors. |
+| **RAD54B** | 7; methylation + CNA | Direct ovarian cancer evidence | RAD54B participates in homologous recombination DNA repair. RAD54B disruption has been reported to impair HR repair and increase ovarian cancer cell sensitivity to PARP inhibition. | This is one of the strongest biology links. If DNA repair genes are altered, cancer cells may accumulate damage. In ovarian cancer, DNA-repair weakness is important because it affects tumor behavior and PARP-inhibitor response. |
+| **NUAK2** | 7; CNA | Ovarian-cancer evidence; still emerging | AACR-reported ovarian cancer work has described NUAK2 as overexpressed in ovarian cancer, with nuclear NUAK2 linked to tumor aggressiveness and poorer survival. | NUAK2 is a kinase, meaning it helps switch signalling pathways on or off. If overactive, it may help cancer cells survive stress, move, or behave more aggressively. |
+| **FOXJ1** | 7; CNA | Direct HGSOC survival evidence | A high-grade serous ovarian carcinoma study found that increased FOXJ1 protein expression was associated with improved overall survival. | FOXJ1 is linked to ciliated-cell biology. In this context, higher FOXJ1 may mark a tumor state associated with better survival rather than aggressive growth. |
+| **CAT** | 7; CNA | Cancer-process supported | CAT encodes catalase, an antioxidant enzyme. Oxidative stress and antioxidant defence are important in ovarian cancer progression and chemotherapy response. | Tumors produce and experience chemical stress. Catalase helps break down harmful peroxide molecules. If this pathway changes, cancer cells may survive stress and treatment pressure better. |
+| **GUSB** | 6; CNA | Ovarian profiling caution | GUSB has been evaluated as a stable reference gene for normalization in serous ovarian cancer gene-expression profiling. | This is a caution gene. Since GUSB can behave like a housekeeping/reference gene, its recurrence should not be overclaimed as a cancer driver. It may reflect stable background signal or copy-number context. |
+| **RFT1** | 6; CNA | Exploratory; pathway-supported | RFT1 is involved in N-linked glycosylation. Glycosylation changes are broadly relevant to ovarian cancer cell signalling, adhesion, immune interaction, and biomarker biology. | Glycosylation is like adding sugar tags to proteins. These tags can change how cancer cells signal, stick, hide from immune cells, or spread. RFT1 is therefore biologically plausible but not directly validated here. |
+| **MRAP2** | 6; CNA | Exploratory | MRAP2 regulates melanocortin/GPCR-related signalling. Direct ovarian cancer evidence is limited. | GPCR signalling is one way cells respond to outside signals. A recurrent MRAP2-linked CNA signal may point to survival-associated genomic structure, but this should stay exploratory. |
+| **NF1** | 6; CNA | Direct ovarian/HGSOC genomic evidence | NF1 is a tumor suppressor and negative regulator of RAS signalling. TCGA and ovarian serous carcinoma studies have identified NF1 alterations in ovarian carcinoma. | NF1 normally acts like a brake on growth signalling. If this brake is weakened, RAS-related growth pathways can become more active, supporting uncontrolled cell division when combined with other cancer errors. |
+| **C10orf4 / ANTKMT** | 5; methylation | Exploratory | C10orf4, also known as ANTKMT/FAM173A, is linked to mitochondrial lysine methylation and mitochondrial respiration. Direct ovarian cancer evidence is limited. | This methylation feature may point to mitochondrial regulation. Since cancer cells often change energy use, the signal is plausible but should not be called a confirmed ovarian cancer gene. |
+| **KLK10** | 5; methylation | Direct ovarian cancer evidence | KLK10 is a kallikrein-family gene. KLK10 expression and methylation have been studied in ovarian tumor diagnosis and prognosis. | KLK10 is connected to secreted/protease biology. Changes in methylation may affect gene regulation, and kallikrein-family signals have been studied as ovarian cancer biomarkers. |
+| **TGM7** | 5; CNA | Exploratory; pathway-supported | TGM7 belongs to the transglutaminase family. Direct TGM7-specific ovarian evidence is limited, but transglutaminase biology, especially TG2, is strongly linked to ovarian cancer adhesion, survival signalling, metastasis, and chemotherapy resistance. | Transglutaminases help crosslink proteins and influence tissue structure. In ovarian cancer, related enzymes can help tumor cells stick to surfaces and resist cell death. TGM7 itself should remain exploratory. |
+| **GRB7** | 5; methylation + CNA | Direct ovarian cancer evidence | GRB7 is an adaptor protein linked to growth-factor receptor signalling and is located near ERBB2/HER2. Ovarian cancer studies have reported GRB7/GRB7v association with high-grade tumors and tumorigenic functions; ERBB2 amplification is also observed in a subset of epithelial ovarian cancers. | GRB7 helps transmit growth signals inside cells. If this region is amplified or dysregulated, it may help cancer cells receive stronger growth and survival messages. |
+| **IGF2** | 5; methylation + CNA | Direct ovarian cancer evidence | IGF2 belongs to the insulin-like growth factor signalling axis. Ovarian cancer studies have linked IGF2 overexpression with altered methylation in the IGF2/H19 imprinting region. | IGF2 acts like a growth signal. If methylation changes increase IGF2 activity, cells may receive stronger pro-growth and survival messages, which can contribute to tumor development when combined with other mutations. |
 
 ---
 
-## Biological Interpretation
+## Main Biological Themes from the Final Combined Features
 
-The explainability results suggest several candidate biological axes for further validation.
+### 1. Copy-number-driven structural and survival signals
 
-### 1. Tumor plasticity and epithelial-mesenchymal transition
+Many of the strongest combined features came from the CNA model, including **FRMD5, LRRN1, RIPPLY2, ATP5A1, NUAK2, FOXJ1, CAT, RFT1, GUSB, MRAP2, NF1, TGM7, GRB7, and IGF2**. This suggests that copy-number alteration carried a strong recurrent explanatory signal in this run.
 
-TWIST1 was the most frequently selected XAI gene. Because TWIST1 is linked to epithelial-to-mesenchymal transition and unfavorable prognosis in ovarian epithelial cancer, its high feature frequency suggests that the model may be capturing tumor plasticity and invasion-related survival signals. [6]
+This fits the biology of high-grade serous ovarian cancer, which is known for widespread genomic instability and copy-number alteration.
 
-### 2. Cell-cycle dysregulation and proliferation
+### 2. Immune signalling and prognosis
 
-CDC20 and CDK2 both appeared among the XAI top features. CDC20 is tied to mitotic progression, while CDK2 is central to G1/S transition and the CCNE1/CDK2 axis. These signals are consistent with cell-cycle acceleration and proliferation as relevant biological dimensions in epithelial ovarian cancer survival prediction. [9,11,12]
+**CCL14** was the dominant mRNA-seq feature. Its epithelial ovarian cancer prognostic literature makes it one of the most biologically interpretable transcriptomic signals in this project.
 
-### 3. Treatment response and resistance-associated biology
+### 3. DNA repair and PARP-relevant biology
 
-TWIST1 has literature support in cisplatin resistance, LIPC was observed in carboplatin-resistant epithelial ovarian cancer organoids, and CDK2 is tied to CCNE1-driven ovarian cancer biology. These findings suggest that some model-selected genes may relate to treatment-response biology, but this project does not validate treatment response directly. [7,8,11,12]
+**RAD54B** is highly relevant because homologous recombination repair and PARP-inhibitor response are central themes in ovarian cancer biology. RAD54B recurrence in methylation-linked explanations is therefore biologically meaningful.
 
-### 4. Metabolic and stress signaling
+### 4. Mitochondrial metabolism and oxidative stress
 
-ATP6V1D and LIPC connect the model output to metabolic regulation, organelle acidification, mTOR-related signaling, and lipid metabolism. These mechanisms are biologically plausible in ovarian cancer but require independent validation in survival-specific cohorts. [8,13]
+**ATP5A1, CAT, and C10orf4/ANTKMT** point toward energy metabolism, oxidative stress, and mitochondrial regulation. These are plausible survival-related pathways because cancer cells must adapt energy production and stress defence to keep growing.
 
-### 5. Coagulation and extracellular vesicle biomarker biology
+### 5. Growth-factor signalling and uncontrolled division
 
-SERPINC1 connects the XAI output to coagulation-related biology and circulating exosomal protein signatures in epithelial ovarian cancer. Its inclusion should be interpreted as a candidate signal rather than a causal survival mechanism. [14,15]
+**NF1, GRB7, and IGF2** connect the model output to growth signalling. In simple terms, these genes relate to whether cells receive, transmit, or suppress growth messages. If growth signals become too strong or growth brakes fail, cells can divide more than they should, and with other DNA errors this can contribute to cancer formation and progression.
 
-### 6. Non-coding RNA and glycosylation-related signals
+### 6. Adhesion, extracellular matrix, and spread
 
-LINC01799 and B3GALT2 point toward non-coding RNA regulation and glycosylation pathways. These are biologically relevant areas in ovarian cancer research, but the evidence is less direct than for TWIST1, CDC20, or CDK2. [18,19]
+**FRMD5, LRRN1, RFT1, and TGM7** connect to adhesion, glycosylation, extracellular matrix, or tissue-structure biology. These are relevant because epithelial ovarian cancer often spreads through the peritoneal cavity, where adhesion and cell-surface interactions matter.
+
+---
+
+## Interpretation Limits
+
+These explainability results should be interpreted as **model-level recurrence patterns**, not as proof of causality. A high frequency means the feature repeatedly influenced the trained model's predictions. It does not prove that changing that gene would change patient survival.
+
+Before any biological claim is treated as strong, these features would need:
+
+- external cohort validation,
+- statistical testing beyond SHAP recurrence,
+- survival modelling such as Cox regression or Kaplan-Meier analysis,
+- gene-expression/methylation/CNA directionality analysis,
+- and ideally experimental validation.
 
 ---
 
 ## Key Takeaway
 
-The strongest result of this project is not simply the final ensemble accuracy. The stronger contribution is that the model produces interpretable gene-level outputs and allows comparison between:
+The strongest result of this project is the combination of:
 
-1. **data-driven model-selected features**, and  
-2. **literature-derived ovarian cancer gene signatures**.
+1. a probability-weighted multi-omics ensemble with the strongest predictive performance, and  
+2. a compact, interpretable set of recurrent model-explanation features.
 
-The exact overlap between the 101-gene reference panel and the XAI top features was limited to **APPL2**, but several non-overlapping XAI genes, including **TWIST1, CDC20, CDK2, LIPC, ATP6V1D, SERPINC1, TSPYL5, CDC37, LINC01799, and B3GALT2**, have ovarian-cancer-relevant literature support. These genes should be treated as candidate biological signals for further validation.
+The most important current XAI features are:
+
+```text
+FRMD5, CCL14, LRRN1, AADAC, RIPPLY2, ATP5A1, RAD54B, NUAK2, FOXJ1, CAT,
+GUSB, RFT1, MRAP2, NF1, C10orf4/ANTKMT, KLK10, TGM7, GRB7, IGF2
+```
+
+Among these, **CCL14, AADAC, RAD54B, FOXJ1, NF1, KLK10, GRB7, and IGF2** have stronger ovarian-cancer-specific support. **FRMD5, LRRN1, RIPPLY2, RFT1, MRAP2, C10orf4/ANTKMT, and TGM7** should be framed more cautiously as exploratory model-derived signals or pathway-supported candidates.
 
 ---
 
 ## References
 
-[1] Millstein J, Budden T, Goode EL, et al. **Prognostic gene expression signature for high-grade serous ovarian cancer.** *Annals of Oncology.* 2020;31(9):1240–1250. doi: 10.1016/j.annonc.2020.05.019. PubMed: https://pubmed.ncbi.nlm.nih.gov/32473302/
+[1] Millstein J, Budden T, Goode EL, et al. **Prognostic gene expression signature for high-grade serous ovarian cancer.** *Annals of Oncology.* 2020. PubMed: https://pubmed.ncbi.nlm.nih.gov/32473302/
 
 [2] Srinivasamurthy BC, Ramamoorthi C. **The Progression and Prospects of the Gene Expression Profiling in Ovarian Epithelial Cancer.** *Gynecology and Minimally Invasive Therapy.* 2024. PubMed: https://pubmed.ncbi.nlm.nih.gov/39184260/
 
 [3] Lundberg SM, Lee S-I. **A Unified Approach to Interpreting Model Predictions.** *NeurIPS.* 2017. https://arxiv.org/abs/1705.07874
 
-[4] Cancer Genome Atlas Research Network. **Integrated genomic analyses of ovarian carcinoma.** *Nature.* 2011;474:609–615. doi: 10.1038/nature10166. PubMed: https://pubmed.ncbi.nlm.nih.gov/21720365/
+[4] Cancer Genome Atlas Research Network. **Integrated genomic analyses of ovarian carcinoma.** *Nature.* 2011;474:609–615. PubMed: https://pubmed.ncbi.nlm.nih.gov/21720365/
 
-[5] NCBI Gene. **APPL2 adaptor protein, phosphotyrosine interacting with PH domain and leucine zipper 2.** https://www.ncbi.nlm.nih.gov/gene/55198
+[5] Arora T, Mullangi S, Lekkala MR. **Epithelial Ovarian Cancer.** *StatPearls / NCBI Bookshelf.* PubMed: https://pubmed.ncbi.nlm.nih.gov/33620837/
 
-[6] Kim K, et al. **The Role of TWIST in Ovarian Epithelial Cancers.** *Korean Journal of Pathology.* 2014. PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC4160591/
+[6] Cai Y, et al. **C-C motif chemokine 14 as a novel potential biomarker for predicting the prognosis of epithelial ovarian cancer.** PubMed: https://pubmed.ncbi.nlm.nih.gov/32218842/
 
-[7] Roberts CM, et al. **TWIST1 drives cisplatin resistance and cell survival in an ovarian cancer model.** *Oncotarget.* 2016. PubMed: https://pubmed.ncbi.nlm.nih.gov/27876874/
+[7] Feng J, et al. **Signature of arylacetamide deacetylase expression is associated with prognosis and immune infiltration in ovarian cancer.** PubMed: https://pubmed.ncbi.nlm.nih.gov/34902961/ ; PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC8784941/
 
-[8] Gorski JW, et al. **Utilizing Patient-Derived Epithelial Ovarian Cancer Tumor Organoids to Predict Carboplatin Resistance.** *Biomedicines.* 2021;9(8):1021. doi: 10.3390/biomedicines9081021. https://www.mdpi.com/2227-9059/9/8/1021
+[8] Liu P, et al. **RAD54B mutations enhance the sensitivity of ovarian cancer cells to PARP inhibitors.** PubMed: https://pubmed.ncbi.nlm.nih.gov/35952757/ ; PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC9463535/
 
-[9] Xi X, et al. **CDC20 is a novel biomarker for improved clinical predictions in epithelial ovarian cancer.** *American Journal of Cancer Research.* 2022;12(7):3303–3317. PubMed: https://pubmed.ncbi.nlm.nih.gov/35968331/
+[9] Weir A, et al. **Increased FOXJ1 protein expression is associated with improved overall survival in high-grade serous ovarian carcinoma.** PubMed: https://pubmed.ncbi.nlm.nih.gov/36323878/ ; PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC9814937/
 
-[10] Shao L, Shen Z, Qian H, Zhou S, Chen Y. **Knockdown of miR-629 inhibits ovarian cancer malignant behaviors by targeting TSPYL5.** *DNA and Cell Biology.* 2017. PubMed: https://pubmed.ncbi.nlm.nih.gov/28972400/
+[10] Murphy SK, et al. **Frequent IGF2/H19 domain epigenetic alterations and elevated IGF2 expression in epithelial ovarian cancer.** PubMed: https://pubmed.ncbi.nlm.nih.gov/16603642/
 
-[11] Yang L, Fang D, Chen H, et al. **Cyclin-dependent kinase 2 is an ideal target for ovary tumors with elevated cyclin E1 expression.** *Oncotarget.* 2015;6(25):20801–20812. doi: 10.18632/oncotarget.4600. PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC4673230/
+[11] Huang Z, et al. **Increased intragenic IGF2 methylation is associated with repression of insulator activity and elevated expression in serous epithelial ovarian carcinoma.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC3662894/
 
-[12] Au-Yeung G, et al. **Selective targeting of Cyclin E1-amplified high-grade serous ovarian cancer.** *Clinical Cancer Research.* 2017. PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC5364079/
+[12] El Sherbini MA, et al. **KLK10 exon 3 unmethylated PCR product concentration in ovarian cancer diagnosis and prognosis.** PubMed: https://pubmed.ncbi.nlm.nih.gov/29690914/
 
-[13] Mikhael S, et al. **Evaluating synergistic effects of metformin and simvastatin on ovarian cancer cells.** *PLOS ONE.* 2024;19(3):e0298127. doi: 10.1371/journal.pone.0298127. https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0298127
+[13] Shvartsman HS, et al. **Overexpression of kallikrein 10 in epithelial ovarian carcinomas.** PubMed: https://pubmed.ncbi.nlm.nih.gov/12821340/
 
-[14] NCBI Gene. **SERPINC1 serpin family C member 1.** https://www.ncbi.nlm.nih.gov/gene/462
+[14] Li YL, et al. **Identification of suitable reference genes for gene expression studies of human serous ovarian cancer.** PubMed: https://pubmed.ncbi.nlm.nih.gov/19622337/
 
-[15] Wang S, Wang H, Wang K, Zhang Q, Song X. **Circulating exosomal protein EFEMP1 and SERPINC1 as diagnostic biomarkers for epithelial ovarian cancer.** *Translational Oncology.* 2024;50:102126. PubMed: https://pubmed.ncbi.nlm.nih.gov/39317065/
+[15] Sangha N, et al. **Neurofibromin 1 (NF1) defects are common in human ovarian serous carcinomas and co-occur with TP53 mutations.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC2586687/
 
-[16] Gray PJ Jr, Prince T, Cheng J, Stevenson MA, Calderwood SK. **Targeting the oncogene and kinome chaperone CDC37.** *Nature Reviews Cancer.* 2008;8:491–495. doi: 10.1038/nrc2420. https://www.nature.com/articles/nrc2420
+[16] Farley J, et al. **Associations between ERBB2 amplification and progression-free survival and overall survival in advanced stage, suboptimally-resected epithelial ovarian cancers.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC6944288/
 
-[17] Wang X, et al. **Identifying the effect of celastrol against ovarian cancer with network pharmacology and experimental validation.** *Frontiers in Pharmacology.* 2022. PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC8971755/
+[17] Wang Y, et al. **Differential functions of growth factor receptor-bound protein 7 and its variant in ovarian carcinogenesis.** PubMed: https://pubmed.ncbi.nlm.nih.gov/20388850/
 
-[18] Song Y, Qu H. **Identification and validation of a seven m6A-related lncRNAs signature predicting prognosis of ovarian cancer.** *BMC Cancer.* 2022. PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC9178823/
+[18] Chan DW, et al. **Targeting GRB7/ERK/FOXM1 signaling pathway impairs aggressiveness of ovarian cancer cells.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC3527599/
 
-[19] Bou Zgheib N, et al. **The O-glycan pathway is associated with in vitro sensitivity to gemcitabine and overall survival from ovarian cancer.** *International Journal of Oncology.* 2012;41(1):179–188. PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC4017641/
+[19] Zeng M, et al. **Grb7 gene amplification and protein expression by FISH and IHC in ovarian cancer.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC4637669/
+
+[20] Xu C, et al. **NUAK2 is highly overexpressed in ovarian cancer and the overexpression of its nuclear form correlates with tumor aggressiveness.** *Cancer Research* AACR abstract. https://aacrjournals.org/cancerres/article/80/16_Supplement/5906/644304/Abstract-5906-NUAK2-is-highly-overexpressed-in
+
+[21] Xu C, et al. **NUAK2: The key player in ovarian cancer progression.** *Cancer Research* AACR abstract. https://aacrjournals.org/cancerres/article/85/8_Supplement_1/6721/760384
+
+[22] Wang T, et al. **Defueling the cancer: ATP synthase as an emerging target in cancer therapy.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC8517097/
+
+[23] Shukla P, et al. **The mitochondrial landscape of ovarian cancer.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC8163040/
+
+[24] Ding DN, et al. **Insights into the Role of Oxidative Stress in Ovarian Cancer.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC8516553/
+
+[25] Glorieux C, et al. **Targeting catalase in cancer.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC11539659/
+
+[26] Anugraham M, et al. **Specific glycosylation of membrane proteins in epithelial ovarian cancer cell lines.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC4159645/
+
+[27] Wanyama FM, et al. **Glycomic-Based Biomarkers for Ovarian Cancer.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC8065431/
+
+[28] Cao L, et al. **Tissue transglutaminase protects epithelial ovarian cancer cells from cisplatin-induced apoptosis by promoting cell survival signaling.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC2556973/
+
+[29] Yakubov B, et al. **Extracellular tissue transglutaminase activates noncanonical NF-κB signaling and promotes metastasis in ovarian cancer.** PubMed: https://pubmed.ncbi.nlm.nih.gov/23730209/ ; PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC3664993/
+
+[30] NCBI Gene. **FRMD5 FERM domain containing 5.** https://www.ncbi.nlm.nih.gov/gene/84978
+
+[31] Hu J, et al. **FERM domain-containing protein FRMD5 regulates cell motility and cell-matrix adhesion.** PubMed: https://pubmed.ncbi.nlm.nih.gov/25448675/
+
+[32] NCBI Gene. **LRRN1 leucine rich repeat neuronal 1.** https://www.ncbi.nlm.nih.gov/gene/57633
+
+[33] NCBI Gene. **RFT1 glycolipid translocator homolog.** https://www.ncbi.nlm.nih.gov/gene/91869
+
+[34] Chen S, et al. **Rft1 catalyzes lipid-linked oligosaccharide translocation across the endoplasmic reticulum membrane.** *Nature Communications.* 2024. https://www.nature.com/articles/s41467-024-48999-3
+
+[35] NCBI Gene. **MRAP2 melanocortin 2 receptor accessory protein 2.** https://www.ncbi.nlm.nih.gov/gene/112609
+
+[36] NCBI Gene. **ANTKMT / FAM173A / C10orf4.** https://www.ncbi.nlm.nih.gov/gene/65990
+
+[37] Małecki JM, et al. **Human FAM173A is a mitochondrial lysine-specific methyltransferase that targets adenine nucleotide translocase and affects mitochondrial respiration.** PubMed: https://pubmed.ncbi.nlm.nih.gov/31213526/ ; PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC6682728/
+
+[38] NCBI Gene. **TGM7 transglutaminase 7.** https://www.ncbi.nlm.nih.gov/gene/116179
+
+[39] NCBI Gene. **GRB7 growth factor receptor bound protein 7.** https://www.ncbi.nlm.nih.gov/gene/2886
+
+[40] NCBI Gene. **ERBB2 erb-b2 receptor tyrosine kinase 2.** https://www.ncbi.nlm.nih.gov/gene/2064
+
+[41] NCBI MedGen / MedlinePlus Genetics. **Ovarian cancer.** https://www.ncbi.nlm.nih.gov/medgen/216027
+
+[42] Cho A, et al. **The Extracellular Matrix in Epithelial Ovarian Cancer.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC4629462/
+
+[43] Rafii A, et al. **High-prevalence and broad spectrum of cell adhesion pathway mutations in serous epithelial ovarian cancer.** PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC3492115/
