@@ -238,17 +238,22 @@ This fits the biology of high-grade serous ovarian cancer, which is known for wi
 
 ---
 
-## Interpretation Limits
+## Interpretation Limitations
 
-These explainability results should be interpreted as **model-level recurrence patterns**, not as proof of causality. A high frequency means the feature repeatedly influenced the trained model's predictions. It does not prove that changing that gene would change patient survival.
+These explainability results should be interpreted as **model-level recurrence patterns rather than evidence of causality**. A high recurrence frequency indicates that a feature repeatedly influenced the trained model’s predictions across multiple runs. However, it does not demonstrate that altering the corresponding gene or molecular feature would directly affect patient survival.
 
-Before any biological claim is treated as strong, these features would need:
+An additional iteration was planned in which the mRNA modality would be removed, similar to the repeated runs performed with different random seeds. Across those runs, mRNA data appeared to provide limited additional contribution to the ensemble model. Due to time constraints, this analysis could not be completed. Future work will therefore include formal hypothesis testing to assess the contribution of mRNA data to model performance, as well as the development of a reduced ensemble model using only copy number alteration and DNA methylation data.
 
-- external cohort validation,
-- statistical testing beyond SHAP recurrence,
-- survival modelling such as Cox regression or Kaplan-Meier analysis,
-- gene-expression/methylation/CNA directionality analysis,
-- and ideally experimental validation.
+Before any biological interpretation is considered robust, the identified features should undergo further evaluation through:
+
+* validation in an independent external cohort;
+* statistical testing beyond recurrence in SHAP-based explanations;
+* survival analyses, such as Cox proportional hazards regression and Kaplan–Meier analysis;
+* assessment of the direction and magnitude of gene-expression, methylation, and copy number alteration effects; and
+* ideally, experimental or functional validation.
+
+Accordingly, the current findings should be regarded as hypothesis-generating signals that identify potentially relevant molecular features for further investigation, rather than as confirmed prognostic biomarkers or causal determinants of survival.
+
 
 ---
 
